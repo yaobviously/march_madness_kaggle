@@ -14,7 +14,6 @@ def get_odds(year=None):
   url = f"https://www.sportsoddshistory.com/cbb-main/?y={year}-{year+1}&sa=cbb&a=nc&o=r"
 
   response = requests.get(url)
-
   soup = BeautifulSoup(response.content, 'html.parser')
 
   teams = []
