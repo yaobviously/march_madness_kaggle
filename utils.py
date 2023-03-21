@@ -109,6 +109,7 @@ def elo_predict(elo_a=1500, elo_b=1500):
     
     return prob_a
 
+
 class GameElo:
 
     def __init__(self, df: pd.DataFrame, base_k: int = 42):
@@ -120,6 +121,8 @@ class GameElo:
         self.elo_dict = {name: 1500 for name in self.names}
         self.base_k = base_k
         self.processed = False
+        self.winner_elo = []
+        self.loser_elo = []
         self.winner_probs = []
 
     def update_elo(self, winner='Rafael Nadal', loser='Pete Sampras'):
@@ -137,7 +140,7 @@ class GameElo:
         self.elo_dict[winner] = prematch_winner_elo + winner_delta
         self.elo_dict[loser] = prematch_loser_elo + loser_delta
 
-        return exp_a
+        return exp_a, prematch_winner_elo, prematch_loser_elo
 
     def process_elo(self):
 
@@ -146,7 +149,10 @@ class GameElo:
 
         else:
             for w, l in zip(self.winners, self.losers):
-                win_prob_ = self.update_elo(winner=w, loser=l)
+                win_prob_, pm_w, pm_l = self.update_elo(winner=w, loser=l)
+
+                self.winner_elo.append(pm_w)
+                self.loser_elo.append(pm_l)
                 self.winner_probs.append(win_prob_)
 
             self.processed = True
