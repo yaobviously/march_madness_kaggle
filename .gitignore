@@ -1,1 +1,6 @@
-kaggle_data/
+
+.pynb_checkpoints/
+
+__pycache__/
+
+kaggle_data/ken_pom_stats
