@@ -158,3 +158,112 @@ class GameElo:
             self.processed = True
             print("elo ratings processed successfully")
             return self
+        
+def get_season_four_factors(df=None):
+    
+    win_cols = [x for x in df.columns if x.startswith('W')]
+    win_cols.append('Season')
+    win_cols.append('DayNum')
+    lose_cols = [x for x in df.columns if x.startswith('L')]
+    lose_cols.append('Season')
+    lose_cols.append('DayNum')
+
+    other_cols = ['Season', 'DayNum']
+
+    win_det = df[win_cols].copy()
+    lose_det = df[lose_cols].copy()
+    win_det.columns = [x[1:] if x not in other_cols else x for x in win_det.columns]
+    lose_det.columns = [x[1:] if x not in other_cols else x for x in lose_det.columns]
+
+    season_stats = (
+        pd.concat([win_det, lose_det])
+        .sort_values(by=['Season', 'DayNum'])
+        .reset_index(drop=True)
+        .drop(columns='Loc')
+    )
+
+    season_sums = (
+        season_stats
+        .groupby(['Season', 'TeamID'])
+        .sum()
+        .reset_index()
+        .drop(columns=['DayNum'])
+    )
+
+    season_sums['3PRate'] = season_sums['FGA3'].div(season_sums['FGA']).round(3)
+    season_sums['FGA2'] = season_sums['FGA'].sub(season_sums['FGA3'])
+    season_sums['FGM2'] = season_sums['FGM'].sub(season_sums['FGM3'])
+    season_sums['eFG'] = (season_sums['FGM2'] + (1.5 * season_sums['FGM3']))/ season_sums['FGA']
+    season_sums['3Perc'] = season_sums['FGM3'].div(season_sums['FGA3']).round(3)
+    season_sums['2Perc'] = season_sums['FGM2'].div(season_sums['FGA2']).round(3)
+    season_sums['FTr'] = season_sums['FTA'].div(season_sums['FGA'])
+    season_sums['TOVperc'] = season_sums['TO'] / (season_sums['FGA'] + season_sums['FTA'] * 0.44 + season_sums['TO'])
+    
+    # calculating the season rate stats for each team
+    season_rates = season_sums[['Season', 'TeamID', '3PRate', 'FTr', 'eFG', '3Perc', '2Perc', 'TOVperc']].round(3).copy()
+    season_rates.columns = season_rates.columns.str.lower()
+    
+    return season_rates
+
+class NCAAELO:
+
+    def __init__(self, df: pd.DataFrame, base_k: int = 49, home_adv: int = 105):
+        self.df = df
+        self.teams = set(
+            pd.concat([self.df['WTeamID'], self.df['LTeamID']]))
+        self.winners = self.df.WTeamID
+        self.losers = self.df.LTeamID
+        self.seasons = self.df.Season
+        self.win_loc = self.df.WLoc
+        self.elo_dict = {name: 1500 for name in self.teams}
+        self.base_k = base_k
+        self.home_advantage = home_adv
+        self.processed = False
+        self.winner_elo = []
+        self.loser_elo = []
+        self.winner_probs = []
+
+    def update_elo(self, winner=None, loser=None, win_loc=None):
+
+        if win_loc == 'H':
+            adv = self.home_advantage
+        elif win_loc == 'A':
+            adv = -self.home_advantage
+        else:
+            adv = 0
+
+        prematch_winner_elo = self.elo_dict[winner] + adv
+        prematch_loser_elo = self.elo_dict[loser]
+
+        exp_a = 1 / \
+            (1 + 10 ** ((prematch_loser_elo - prematch_winner_elo)/400))
+        exp_b = 1 - exp_a
+
+        winner_delta = self.base_k * (1 - exp_a)
+        loser_delta = self.base_k * (0 - exp_b)
+
+        self.elo_dict[winner] = self.elo_dict[winner] + winner_delta
+        self.elo_dict[loser] = self.elo_dict[loser] + loser_delta
+
+        return exp_a
+
+    def process_elo(self):
+        
+        if self.processed == True:
+            return "already processed"
+        
+        season_ = min(self.seasons)
+
+        for s, w, l, h in zip(self.seasons, self.winners, self.losers, self.win_loc):
+
+            if s != season_:
+                self.elo_dict = {team: ((0.87 * value + 0.13 * 1500)) for team, value in self.elo_dict.items()}
+                season_ += 1
+
+            winner_prob = self.update_elo(winner=w, loser=l, win_loc=h)
+
+            self.winner_probs.append(winner_prob)
+        
+        self.processed=True
+        
+        return self
