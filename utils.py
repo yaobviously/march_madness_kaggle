@@ -205,17 +205,25 @@ def get_season_four_factors(df=None):
     
     return season_rates
 
-class NCAAELO:
 
-    def __init__(self, df: pd.DataFrame, base_k: int = 49, home_adv: int = 105):
+class NCAAElo:
+
+    def __init__(self, df: pd.DataFrame = None, base_k: int = 49, home_adv: int = 105, elo_dict: dict = None):
+        """
+       Initializes the NCAAELO class with the given parameters.
+
+       Args:
+           df (pd.DataFrame): The DataFrame containing the game data.
+           base_k (int): The base value for K-factor in the Elo rating system.
+           home_adv (int): The home advantage factor for the Elo rating system.
+           elo_dict (dict): The dictionary containing the initial Elo ratings for each team.
+       """
         self.df = df
-        self.teams = set(
-            pd.concat([self.df['WTeamID'], self.df['LTeamID']]))
+        self.teams = set(pd.concat([self.df['WTeamID'], self.df['LTeamID']]))
         self.winners = self.df.WTeamID
         self.losers = self.df.LTeamID
         self.seasons = self.df.Season
         self.win_loc = self.df.WLoc
-        self.elo_dict = {name: 1500 for name in self.teams}
         self.base_k = base_k
         self.home_advantage = home_adv
         self.processed = False
@@ -223,7 +231,30 @@ class NCAAELO:
         self.loser_elo = []
         self.winner_probs = []
 
+        if elo_dict is not None:
+            self.elo_dict = elo_dict
+        else:
+            self.elo_dict = {name: 1500 for name in self.teams}
+
+        # adding teams to elo_dict if they aren't included in the provided
+        # dictionary
+        for team in self.teams:
+            if team not in self.elo_dict:
+                self.elo_dict[team] = 1500
+
     def update_elo(self, winner=None, loser=None, win_loc=None):
+        
+        """
+        Updates the Elo ratings for the winner and loser of a game.
+        
+        Args:
+            winner (str): The name of the winning team.
+            loser (str): The name of the losing team.
+            win_loc (str): The location of the game (either 'H' for home, 'A' for away, or None for neutral).
+        
+        Returns:
+            The predicted win probability for the winning team.
+        """
 
         if win_loc == 'H':
             adv = self.home_advantage
@@ -248,6 +279,12 @@ class NCAAELO:
         return exp_a
 
     def process_elo(self):
+        """
+        updates the ELO ratings of each player for every game in the dataset
+        while storing each pregame win probability and each team's gametime
+        ELO
+
+        """
         
         if self.processed == True:
             return "already processed"
@@ -259,11 +296,14 @@ class NCAAELO:
             if s != season_:
                 self.elo_dict = {team: ((0.87 * value + 0.13 * 1500)) for team, value in self.elo_dict.items()}
                 season_ += 1
+                
+            self.winner_elo.append(self.elo_dict[w])
+            self.loser_elo.append(self.elo_dict[l])
 
             winner_prob = self.update_elo(winner=w, loser=l, win_loc=h)
 
             self.winner_probs.append(winner_prob)
         
-        self.processed=True
+        self.processed = True
         
         return self
