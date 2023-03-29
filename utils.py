@@ -208,7 +208,7 @@ def get_season_four_factors(df=None):
 
 class NCAAElo:
 
-    def __init__(self, df: pd.DataFrame = None, base_k: int = 49, home_adv: int = 105, elo_dict: dict = None):
+    def __init__(self, df: pd.DataFrame = None, base_k: int = 44, home_adv: int = 88, elo_dict: dict = None):
         """
        Initializes the NCAAELO class with the given parameters.
 
